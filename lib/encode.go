@@ -32,7 +32,7 @@ type Encoder struct {
 }
 
 // NewEncoder for creating new encoder structures
-func NewEncoder() Encoder {
+func NewEncoder() *Encoder {
 	// Create with default settings
 	var encoder Encoder
 	// need to check architecture
@@ -42,11 +42,11 @@ func NewEncoder() Encoder {
 	encoder.Seed = RandomByte()
 	encoder.EncodingCount = 1
 	encoder.SaveRegisters = false
-	return encoder
+	return &encoder
 }
 
 // SetArchitecture sets the encoder architecture
-func (encoder Encoder) SetArchitecture(arch int) error {
+func (encoder *Encoder) SetArchitecture(arch int) error {
 	switch arch {
 	case 32:
 		encoder.architecture = 32
@@ -59,34 +59,34 @@ func (encoder Encoder) SetArchitecture(arch int) error {
 }
 
 // GetArchitecture returns the encoder architecture
-func (encoder Encoder) GetArchitecture() int {
+func (encoder *Encoder) GetArchitecture() int {
 	return encoder.architecture
 }
 
 // Encode function is the primary encode method for SGN
 // all nessary options and parameters are contained inside the encodder struct
-func (encoder Encoder) Encode(payload []byte) ([]byte, error) {
+func (encoder *Encoder) Encode(payload []byte) ([]byte, error) {
 
 	if encoder.SaveRegisters {
 		payload = append(payload, SafeRegisterSuffix[encoder.architecture]...)
 	}
 
-	// Add garbage instrctions before the ciphered decoder stub
+	// Add garbage instrctions before the un-encoded payload
 	garbage, err := encoder.GenerateGarbageInstructions()
 	if err != nil {
 		return nil, err
 	}
 	payload = append(garbage, payload...)
 	encoder.ObfuscationLimit -= len(garbage)
-
+	// Apply ADFL cipher to payload
 	ciperedPayload := CipherADFL(payload, encoder.Seed)
 	decoderAssembly := encoder.NewDecoderAssembly(ciperedPayload)
-
+	// Assemble decoder stub
 	decoder, ok := encoder.Assemble(decoderAssembly)
 	if !ok {
 		return nil, errors.New("decoder assembly failed")
 	}
-
+	// Combine decoder stub + ciphered payload into encoded payload
 	encodedPayload := append(decoder, ciperedPayload...)
 	if encoder.PlainDecoder {
 		if encoder.SaveRegisters && encoder.EncodingCount == 1 {
@@ -95,6 +95,13 @@ func (encoder Encoder) Encode(payload []byte) ([]byte, error) {
 		return encodedPayload, nil
 	}
 
+	// Add more garbage instrctions before the decoder stub
+	garbage, err = encoder.GenerateGarbageInstructions()
+	if err != nil {
+		return nil, err
+	}
+	encodedPayload = append(garbage, encodedPayload...)
+	// Calculate schema size
 	schemaSize := ((len(encodedPayload) - len(ciperedPayload)) / (encoder.architecture / 8)) + 1
 	randomSchema := encoder.NewCipherSchema(schemaSize)
 
@@ -132,7 +139,7 @@ func CipherADFL(data []byte, seed byte) []byte {
 // Encoding done without using any loop conditions based on the schema values.
 // Function performs logical/arithmetic operations given in the schema array.
 // If invalid operand supplied function returns nil
-func (encoder Encoder) SchemaCipher(data []byte, index int, schema SCHEMA) []byte {
+func (encoder *Encoder) SchemaCipher(data []byte, index int, schema SCHEMA) []byte {
 
 	for _, cursor := range schema {
 
@@ -182,7 +189,7 @@ func CoinFlip() bool {
 // NewCipherSchema generates random schema for
 // using int the SchemaCipher function.
 // Generated schema contains random operands and keys.
-func (encoder Encoder) NewCipherSchema(num int) SCHEMA {
+func (encoder *Encoder) NewCipherSchema(num int) SCHEMA {
 	schema := make(SCHEMA, num)
 
 	for i, cursor := range schema {
@@ -211,7 +218,7 @@ func GetSchemaTable(schema SCHEMA) string {
 	table.SetHeader([]string{"OPERAND", "KEY"})
 	for _, cursor := range schema {
 		if cursor.Key == nil {
-			table.Append([]string{cursor.OP, "0x00"})
+			table.Append([]string{cursor.OP, "0x00000000"})
 		} else {
 			table.Append([]string{cursor.OP, fmt.Sprintf("0x%x", cursor.Key)})
 		}

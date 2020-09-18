@@ -35,7 +35,7 @@ func main() {
 	output := flag.String("o", "", "Encoded output binary name")
 	arch := flag.Int("a", 32, "Binary architecture (32/64)")
 	encCount := flag.Int("c", 1, "Number of times to encode the binary (increases overall size)")
-	obsLevel := flag.Int("max", 50, "Maximum number of bytes for obfuscation")
+	obsLevel := flag.Int("max", 20, "Maximum number of bytes for obfuscation")
 	encDecoder := flag.Bool("plain-decoder", false, "Do not encode the decoder stub")
 	asciPayload := flag.Bool("asci", false, "Generates a full ASCI printable payload (takes very long time to bruteforce)")
 	saveRegisters := flag.Bool("safe", false, "Do not modify any register values")
@@ -48,18 +48,8 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Setup a encoder struct
 	input := os.Args[len(os.Args)-1]
-
-	printVerbose("Input: " + input)
-	printVerbose("Architecture: x" + strconv.Itoa(*arch))
-	printVerbose("Max. Obfuscation Size: " + strconv.Itoa(*obsLevel))
-	printVerbose("Encode Count: " + strconv.Itoa(*encCount))
-	printVerbose("ASCII Mode: " + strconv.FormatBool(*asciPayload))
-	printVerbose("Bad Characters: " + *badChars)
-
-	file, err := ioutil.ReadFile(input)
-	eror(err)
-	printStatus("Input Size: " + strconv.Itoa(len(file)))
 	payload := []byte{}
 	encoder := sgn.NewEncoder()
 	encoder.ObfuscationLimit = *obsLevel
@@ -67,6 +57,24 @@ func main() {
 	encoder.EncodingCount = *encCount
 	encoder.SaveRegisters = *saveRegisters
 	eror(encoder.SetArchitecture(*arch))
+	file, err := ioutil.ReadFile(input)
+	eror(err)
+
+	// Print encoder params...
+	printVerbose("Input: " + input)
+	printStatus("Input Size: " + strconv.Itoa(len(file)))
+	printVerbose("Architecture: x" + strconv.Itoa(encoder.GetArchitecture()))
+	printVerbose("Encode Count: " + strconv.Itoa(encoder.EncodingCount))
+	printVerbose("Max. Obfuscation Size: " + strconv.Itoa(encoder.ObfuscationLimit))
+	printVerbose("Bad Characters: " + *badChars)
+	printVerbose("ASCII Mode: " + strconv.FormatBool(*asciPayload))
+	printVerbose("Plain Decoder: " + strconv.FormatBool(encoder.PlainDecoder))
+	printVerbose("Safe Registers: " + strconv.FormatBool(encoder.SaveRegisters))
+	// Calculate evarage garbage instrunction size
+	average, err := encoder.CalculateAverageGarbageInstructionSize()
+	eror(err)
+
+	printVerbose("Avg. Garbage Size: " + fmt.Sprintf("%f", average))
 
 	if *badChars != "" || *asciPayload {
 
@@ -84,21 +92,11 @@ func main() {
 			p, err := encode(encoder, file)
 			eror(err)
 
-			switch *asciPayload {
-			case true:
-				if !isASCIIPrintable(string(p)) {
-					continue
-				}
-			case false:
-				for b := range badBytes {
-					if strings.Contains(string(p), string(b)) {
-						continue
-					}
-				}
+			if (*asciPayload && isASCIIPrintable(string(p))) || (len(badBytes) > 0 && !containsBytes(p, badBytes)) {
+				payload = p
+				break
 			}
-
-			payload = p
-			break
+			encoder.Seed = (encoder.Seed + 1) % 255
 		}
 		s.Stop()
 		printStatus("Success ᕕ( ᐛ )ᕗ")
@@ -132,7 +130,7 @@ func main() {
 }
 
 // Encode function is the primary encode method for SGN
-func encode(encoder sgn.Encoder, payload []byte) ([]byte, error) {
+func encode(encoder *sgn.Encoder, payload []byte) ([]byte, error) {
 	red := color.New(color.Bold, color.FgRed).SprintfFunc()
 	green := color.New(color.Bold, color.FgGreen).SprintfFunc()
 
@@ -179,7 +177,7 @@ func encode(encoder sgn.Encoder, payload []byte) ([]byte, error) {
 
 	if encoder.EncodingCount > 1 {
 		encoder.EncodingCount--
-		return encode(encoder, payload)
+		return encode(encoder, final)
 	}
 
 	if encoder.SaveRegisters {
@@ -188,6 +186,16 @@ func encode(encoder sgn.Encoder, payload []byte) ([]byte, error) {
 	}
 
 	return final, nil
+}
+
+// checks if a bytes array contains any element of another byte array
+func containsBytes(data, bytes []byte) bool {
+	for _, b := range bytes {
+		if strings.Contains(string(data), string(b)) {
+			return true
+		}
+	}
+	return false
 }
 
 // checks if s is ascii and printable, aka doesn't include tab, backspace, etc.
@@ -207,7 +215,7 @@ func eror(err error) {
 		if ok && details != nil {
 			log.Fatalf("[%s] ERROR: %s\n", strings.ToUpper(strings.Split(details.Name(), ".")[1]), err)
 		} else {
-			log.Fatalf("[UNKOWN] ERROR: %s\n", err)
+			log.Fatalf("[UNKNOWN] ERROR: %s\n", err)
 		}
 	}
 }

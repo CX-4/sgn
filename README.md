@@ -20,9 +20,11 @@ For offensive security community, the original implementation of shikata ga nai 
 
 ## Install
 
+You can get the pre-compiled binaries [HERE](https://github.com/EgeBalci/sgn/releases). For building from source follow the steps bellow.
+
 **Dependencies:**
 
-Only dependencies required is keystone and capstone libraries. For easily installing capstone libarary check the table;
+Only dependencies required is keystone and capstone libraries. For easily installing capstone and keystone libararies check the table below;
 
 
 <table>
@@ -35,16 +37,16 @@ Only dependencies required is keystone and capstone libraries. For easily instal
       <td>sudo apt-get install libcapstone-dev</td>
   </tr>
   <tr>
+      <td>Arch Linux</td>
+      <td>sudo pacman -S capstone keystone</td>
+  </tr>
+  <tr>
       <td>Mac</td>
-      <td>brew install capstone</td>
+      <td>brew install keystone capstone</td>
   </tr>
   <tr>
-      <td>FreeBSD</td>
-      <td>pkg install capstone</td>
-  </tr>
-  <tr>
-      <td>OpenBSD</td>
-      <td>sudo pkg_add capstone</td>
+      <td>Fedora</td>
+      <td>sudo yum install keystone capstone</td>
   </tr>
   <tr>
       <td>Windows/All Other...</td>
@@ -52,12 +54,21 @@ Only dependencies required is keystone and capstone libraries. For easily instal
   </tr>
 </table>
 
-Installation of keystone library can be little tricky in some cases. [Check here](https://github.com/keystone-engine/keystone/blob/master/docs/COMPILE.md) for keystone library installation guides.
+Installation of keystone library can be little tricky in some cases. [Check here](https://github.com/keystone-engine/keystone/blob/master/docs/COMPILE.md) if you have any problem with yor packet manager.
 
 Then just go get it ツ
 
 ```
 go get github.com/egebalci/sgn
+```
+
+***DOCKER INSTALL***
+
+[![Docker](http://dockeri.co/image/egee/sgn)](https://hub.docker.com/r/egee/sgn/)
+
+```
+docker pull egee/sgn
+docker run -it egee/sgn
 ```
 
 **Usage**
@@ -87,7 +98,7 @@ Usage: sgn [OPTIONS] <FILE>
     	Number of times to encode the binary (increases overall size) (default 1)
   -h	Print help
   -max int
-    	Maximum number of bytes for obfuscation (default 50)
+    	Maximum number of bytes for obfuscation (default 20)
   -o string
     	Encoded output binary name
   -plain-decoder
@@ -97,6 +108,11 @@ Usage: sgn [OPTIONS] <FILE>
   -v	More verbose output
 ```
 
+***Docker Usage***
+
+```
+docker run -it -v /tmp/:/tmp/ sgn /tmp/shellcode
+```
 
 ## Using As Library
 Warning !! SGN package is still under development for better performance and several improvements. Most of the functions are subject to change.
